@@ -1,14 +1,5 @@
 import { useState } from "react";
-import {
-  X,
-  Trash2,
-  CheckCircle2,
-  Circle,
-  AlertTriangle,
-  ArrowUp,
-  ArrowRight,
-  ArrowDown,
-} from "lucide-react";
+import { X, Trash2, CheckCircle2, Circle } from "lucide-react";
 import { api, type Ticket, type Project, type Team, type Subtask } from "../api/client";
 
 const STATUSES = ["todo", "in_progress", "done"];
@@ -18,13 +9,6 @@ const STATUS_LABELS: Record<string, string> = {
   todo: "Todo",
   in_progress: "In Progress",
   done: "Done",
-};
-
-const PRIORITY_CONFIG: Record<string, { style: string; icon: typeof ArrowUp }> = {
-  urgent: { style: "bg-red-500/20 text-red-400", icon: AlertTriangle },
-  high: { style: "bg-orange-500/20 text-orange-400", icon: ArrowUp },
-  medium: { style: "bg-yellow-500/20 text-yellow-400", icon: ArrowRight },
-  low: { style: "bg-green-500/20 text-green-400", icon: ArrowDown },
 };
 
 export default function TicketPanel({
