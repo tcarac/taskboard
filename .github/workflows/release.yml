@@ -99,25 +99,84 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Get tag version
         id: tag
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+        run: |
+          version="${GITHUB_REF#refs/tags/}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version_number=${version#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Download macOS arm64 tarball and compute SHA
+      - name: Download release tarballs and compute SHAs
         id: sha
         run: |
-          url="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.version }}/taskboard-darwin-arm64.tar.gz"
-          curl -sL "$url" -o taskboard.tar.gz
-          sha=$(shasum -a 256 taskboard.tar.gz | awk '{print $1}')
-          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
+          base_url="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.version }}"
+          for arch in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
+            curl -sL --retry 3 "$base_url/taskboard-${arch}.tar.gz" -o "taskboard-${arch}.tar.gz"
+            sha=$(sha256sum "taskboard-${arch}.tar.gz" | awk '{print $1}')
+            key=$(echo "$arch" | tr '-' '_')
+            echo "sha256_${key}=$sha" >> "$GITHUB_OUTPUT"
+          done
 
-      - name: Update Homebrew formula
+      - name: Generate Homebrew formula
+        env:
+          SHA_DARWIN_ARM64: ${{ steps.sha.outputs.sha256_darwin_arm64 }}
+          SHA_DARWIN_AMD64: ${{ steps.sha.outputs.sha256_darwin_amd64 }}
+          SHA_LINUX_ARM64: ${{ steps.sha.outputs.sha256_linux_arm64 }}
+          SHA_LINUX_AMD64: ${{ steps.sha.outputs.sha256_linux_amd64 }}
+          VERSION: ${{ steps.tag.outputs.version_number }}
         run: |
-          sed -i "s|url \".*\"|url \"${{ steps.sha.outputs.url }}\"|" Formula/taskboard.rb
-          sed -i "s|sha256 \".*\"|sha256 \"${{ steps.sha.outputs.sha256 }}\"|" Formula/taskboard.rb
-          sed -i "s|version \".*\"|version \"${{ steps.tag.outputs.version#v }}\"|" Formula/taskboard.rb
+          envsubst << 'EOF' > Formula/taskboard.rb
+          class Taskboard < Formula
+            desc "Local project management with Kanban UI and MCP server for AI assistants"
+            homepage "https://github.com/tcarac/taskboard"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              elsif Hardware::CPU.intel?
+                url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-darwin-amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              elsif Hardware::CPU.intel?
+                url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-linux-amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              if OS.mac?
+                if Hardware::CPU.arm?
+                  bin.install "taskboard-darwin-arm64" => "taskboard"
+                else
+                  bin.install "taskboard-darwin-amd64" => "taskboard"
+                end
+              elsif OS.linux?
+                if Hardware::CPU.arm?
+                  bin.install "taskboard-linux-arm64" => "taskboard"
+                else
+                  bin.install "taskboard-linux-amd64" => "taskboard"
+                end
+              end
+            end
+
+            test do
+              assert_match "taskboard", shell_output("#{bin}/taskboard --help")
+            end
+          end
+          EOF
+          sed -i 's/^          //' Formula/taskboard.rb
 
       - name: Commit updated formula
         uses: stefanzweifel/git-auto-commit-action@v5
