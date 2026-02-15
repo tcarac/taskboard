@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { X, Trash2, CheckCircle2, Circle } from "lucide-react";
+import { X, Trash2, CheckCircle2, Circle, Pencil, Eye } from "lucide-react";
+import Markdown from "react-markdown";
 import { api, type Ticket, type Project, type Team, type Subtask } from "../api/client";
 
 const STATUSES = ["todo", "in_progress", "done"];
@@ -35,6 +36,7 @@ export default function TicketPanel({
   const [subtasks, setSubtasks] = useState<Subtask[]>(ticket.subtasks || []);
   const [newSubtask, setNewSubtask] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [descMode, setDescMode] = useState<"preview" | "write">(description ? "preview" : "write");
 
   const markDirty = () => setDirty(true);
 
@@ -105,16 +107,57 @@ export default function TicketPanel({
             className="w-full bg-transparent text-lg font-semibold text-white focus:outline-none"
           />
 
-          <textarea
-            value={description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-              markDirty();
-            }}
-            rows={4}
-            placeholder="Add a description…"
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-          />
+          <div>
+            <div className="flex items-center gap-1 mb-1.5">
+              <button
+                type="button"
+                onClick={() => setDescMode("write")}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${
+                  descMode === "write"
+                    ? "bg-slate-700 text-white"
+                    : "text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                <Pencil className="w-3 h-3" />
+                Write
+              </button>
+              <button
+                type="button"
+                onClick={() => setDescMode("preview")}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${
+                  descMode === "preview"
+                    ? "bg-slate-700 text-white"
+                    : "text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                <Eye className="w-3 h-3" />
+                Preview
+              </button>
+            </div>
+            {descMode === "write" ? (
+              <textarea
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  markDirty();
+                }}
+                rows={8}
+                placeholder="Add a description (supports markdown)…"
+                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y font-mono min-h-[10.5rem]"
+              />
+            ) : description ? (
+              <div className="prose-card bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 min-h-[10.5rem] overflow-y-auto">
+                <Markdown>{description}</Markdown>
+              </div>
+            ) : (
+              <div
+                onClick={() => setDescMode("write")}
+                className="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 min-h-[10.5rem] text-sm text-slate-600 cursor-text"
+              >
+                Add a description…
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>

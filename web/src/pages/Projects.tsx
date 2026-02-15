@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, X, FolderKanban } from "lucide-react";
+import { Plus, Trash2, X, FolderKanban, ChevronDown, ChevronUp } from "lucide-react";
+import Markdown from "react-markdown";
 import { api, type Project } from "../api/client";
 
 const DEFAULT_COLORS = [
@@ -40,7 +41,7 @@ function ProjectModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-5"
+        className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-5 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">
@@ -102,9 +103,9 @@ function ProjectModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Goals, scope, and context for this project…"
-              rows={3}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              placeholder="Supports markdown — goals, scope, and context for this project…"
+              rows={12}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y font-mono"
             />
           </div>
 
@@ -171,6 +172,16 @@ export default function Projects() {
   const [showCreate, setShowCreate] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
+
+  const toggleDesc = (id: string) => {
+    setExpandedDescs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const load = async () => {
     try {
@@ -255,9 +266,32 @@ export default function Projects() {
                   {project.name}
                 </h3>
                 {project.description && (
-                  <p className="mt-1 text-xs text-slate-400 line-clamp-2">
-                    {project.description}
-                  </p>
+                  <div className="mt-1">
+                     <div
+                      className={`prose-card overflow-hidden ${
+                        expandedDescs.has(project.id) ? "" : "line-clamp-4"
+                      }`}
+                    >
+                      <Markdown>{project.description}</Markdown>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDesc(project.id);
+                      }}
+                      className="mt-1 inline-flex items-center gap-0.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      {expandedDescs.has(project.id) ? (
+                        <>
+                          Show less <ChevronUp className="w-3 h-3" />
+                        </>
+                      ) : (
+                        <>
+                          Show more <ChevronDown className="w-3 h-3" />
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-xs font-mono text-slate-500">
