@@ -11,7 +11,7 @@ Single binary. SQLite-backed. No Docker, no external database, no runtime depend
 - **Teams** — assign tickets to teams
 - **Tickets** — priority levels, due dates, labels, subtasks, dependencies (blocked by)
 - **CLI** — manage everything from the terminal
-- **MCP Server** — 18 tools for AI-native project management via Model Context Protocol
+- **MCP Server** — 22 tools for AI-native project management via Model Context Protocol
 - **Self-Hosted** — your data stays on your machine in a SQLite database
 - **Single Binary** — one `brew install` and you're running
 
@@ -86,28 +86,47 @@ Add to `~/.claude/claude_desktop_config.json`:
 }
 ```
 
-#### Available MCP Tools
+#### Data Hierarchy
 
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List all projects with optional status filter |
-| `get_project` | Get project details by ID |
-| `create_project` | Create a new project |
-| `update_project` | Update project properties |
-| `delete_project` | Delete a project |
-| `list_teams` | List all teams |
-| `get_team` | Get team details by ID |
-| `create_team` | Create a new team |
-| `update_team` | Update team properties |
-| `delete_team` | Delete a team |
-| `list_tickets` | List tickets with filters |
-| `get_ticket` | Get ticket details with subtasks and labels |
-| `create_ticket` | Create a new ticket |
-| `update_ticket` | Update ticket properties |
-| `move_ticket` | Move ticket to different status column |
-| `delete_ticket` | Delete a ticket |
-| `get_board` | Get full Kanban board grouped by status |
-| `toggle_subtask` | Toggle subtask completion |
+```
+Project → Ticket → Subtask
+(initiative)  (task)    (step)
+```
+
+- **Projects** are the top-level grouping (like epics/initiatives). Create one per body of work.
+- **Tickets** are concrete, actionable tasks within a project. Don't create "epic" tickets — use projects.
+- **Subtasks** are checklist steps within a ticket, for breaking work into verifiable pieces.
+
+#### Available MCP Tools (22)
+
+| Tool                    | Description                                      |
+| ----------------------- | ------------------------------------------------ |
+| **Projects**            |                                                  |
+| `list_projects`         | List all projects with optional status filter    |
+| `get_project`           | Get project details by ID                        |
+| `create_project`        | Create a new project (use for epics/initiatives) |
+| `update_project`        | Update project properties                        |
+| `delete_project`        | Delete a project and all its tickets             |
+| **Teams**               |                                                  |
+| `list_teams`            | List all teams                                   |
+| `get_team`              | Get team details by ID                           |
+| `create_team`           | Create a new team                                |
+| `update_team`           | Update team properties                           |
+| `delete_team`           | Delete a team                                    |
+| **Tickets**             |                                                  |
+| `list_tickets`          | List tickets with filters                        |
+| `get_ticket`            | Get ticket details with subtasks and labels      |
+| `create_ticket`         | Create a ticket (task) within a project          |
+| `update_ticket`         | Update ticket properties                         |
+| `move_ticket`           | Move ticket to different status column           |
+| `delete_ticket`         | Delete a ticket                                  |
+| **Board**               |                                                  |
+| `get_board`             | Get full Kanban board grouped by status          |
+| **Subtasks**            |                                                  |
+| `create_subtask`        | Add a subtask to a ticket                        |
+| `batch_create_subtasks` | Add multiple subtasks to a ticket at once        |
+| `toggle_subtask`        | Toggle subtask completion                        |
+| `delete_subtask`        | Remove a subtask from a ticket                   |
 
 #### Example Prompts
 
@@ -142,14 +161,14 @@ Migrations run automatically on first start.
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Language | Go |
-| Database | SQLite (via modernc.org/sqlite, pure Go) |
-| CLI | cobra |
-| HTTP | chi |
-| Frontend | React, TypeScript, Tailwind CSS v4, dnd-kit |
-| MCP | JSON-RPC over stdio |
+| Layer        | Technology                                          |
+| ------------ | --------------------------------------------------- |
+| Language     | Go                                                  |
+| Database     | SQLite (via modernc.org/sqlite, pure Go)            |
+| CLI          | cobra                                               |
+| HTTP         | chi                                                 |
+| Frontend     | React, TypeScript, Tailwind CSS v4, dnd-kit         |
+| MCP          | JSON-RPC over stdio                                 |
 | Distribution | Single binary with embedded frontend via `embed.FS` |
 
 ## Development
