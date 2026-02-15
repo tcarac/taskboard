@@ -23,7 +23,7 @@ func newID() string {
 }
 
 func (s *Store) ListProjects(status string) ([]models.Project, error) {
-	query := "SELECT id, name, prefix, icon, color, status, created_at, updated_at FROM projects"
+	query := "SELECT id, name, prefix, description, icon, color, status, created_at, updated_at FROM projects"
 	args := []any{}
 	if status != "" {
 		query += " WHERE status = ?"
@@ -40,7 +40,7 @@ func (s *Store) ListProjects(status string) ([]models.Project, error) {
 	var projects []models.Project
 	for rows.Next() {
 		var p models.Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.Prefix, &p.Icon, &p.Color, &p.Status, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Prefix, &p.Description, &p.Icon, &p.Color, &p.Status, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, p)
@@ -51,8 +51,8 @@ func (s *Store) ListProjects(status string) ([]models.Project, error) {
 func (s *Store) GetProject(id string) (*models.Project, error) {
 	var p models.Project
 	err := s.db.QueryRow(
-		"SELECT id, name, prefix, icon, color, status, created_at, updated_at FROM projects WHERE id = ?", id,
-	).Scan(&p.ID, &p.Name, &p.Prefix, &p.Icon, &p.Color, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+		"SELECT id, name, prefix, description, icon, color, status, created_at, updated_at FROM projects WHERE id = ?", id,
+	).Scan(&p.ID, &p.Name, &p.Prefix, &p.Description, &p.Icon, &p.Color, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -61,22 +61,23 @@ func (s *Store) GetProject(id string) (*models.Project, error) {
 
 func (s *Store) CreateProject(req models.CreateProjectRequest) (*models.Project, error) {
 	p := models.Project{
-		ID:        newID(),
-		Name:      req.Name,
-		Prefix:    req.Prefix,
-		Icon:      req.Icon,
-		Color:     req.Color,
-		Status:    "active",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:          newID(),
+		Name:        req.Name,
+		Prefix:      req.Prefix,
+		Description: req.Description,
+		Icon:        req.Icon,
+		Color:       req.Color,
+		Status:      "active",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	if p.Color == "" {
 		p.Color = "#3B82F6"
 	}
 
 	_, err := s.db.Exec(
-		"INSERT INTO projects (id, name, prefix, icon, color, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		p.ID, p.Name, p.Prefix, p.Icon, p.Color, p.Status, p.CreatedAt, p.UpdatedAt,
+		"INSERT INTO projects (id, name, prefix, description, icon, color, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		p.ID, p.Name, p.Prefix, p.Description, p.Icon, p.Color, p.Status, p.CreatedAt, p.UpdatedAt,
 	)
 	return &p, err
 }
@@ -93,6 +94,9 @@ func (s *Store) UpdateProject(id string, req models.UpdateProjectRequest) (*mode
 	if req.Prefix != nil {
 		p.Prefix = *req.Prefix
 	}
+	if req.Description != nil {
+		p.Description = *req.Description
+	}
 	if req.Icon != nil {
 		p.Icon = *req.Icon
 	}
@@ -105,8 +109,8 @@ func (s *Store) UpdateProject(id string, req models.UpdateProjectRequest) (*mode
 	p.UpdatedAt = time.Now()
 
 	_, err = s.db.Exec(
-		"UPDATE projects SET name=?, prefix=?, icon=?, color=?, status=?, updated_at=? WHERE id=?",
-		p.Name, p.Prefix, p.Icon, p.Color, p.Status, p.UpdatedAt, p.ID,
+		"UPDATE projects SET name=?, prefix=?, description=?, icon=?, color=?, status=?, updated_at=? WHERE id=?",
+		p.Name, p.Prefix, p.Description, p.Icon, p.Color, p.Status, p.UpdatedAt, p.ID,
 	)
 	return p, err
 }

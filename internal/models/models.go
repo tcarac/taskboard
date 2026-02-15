@@ -3,14 +3,15 @@ package models
 import "time"
 
 type Project struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Prefix    string    `json:"prefix"`
-	Icon      string    `json:"icon,omitempty"`
-	Color     string    `json:"color,omitempty"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Prefix      string    `json:"prefix"`
+	Description string    `json:"description,omitempty"`
+	Icon        string    `json:"icon,omitempty"`
+	Color       string    `json:"color,omitempty"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type Team struct {
@@ -100,18 +101,20 @@ type Column struct {
 }
 
 type CreateProjectRequest struct {
-	Name   string `json:"name"`
-	Prefix string `json:"prefix"`
-	Icon   string `json:"icon,omitempty"`
-	Color  string `json:"color,omitempty"`
+	Name        string `json:"name"`
+	Prefix      string `json:"prefix"`
+	Description string `json:"description,omitempty"`
+	Icon        string `json:"icon,omitempty"`
+	Color       string `json:"color,omitempty"`
 }
 
 type UpdateProjectRequest struct {
-	Name   *string `json:"name,omitempty"`
-	Prefix *string `json:"prefix,omitempty"`
-	Icon   *string `json:"icon,omitempty"`
-	Color  *string `json:"color,omitempty"`
-	Status *string `json:"status,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Prefix      *string `json:"prefix,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	Status      *string `json:"status,omitempty"`
 }
 
 type CreateTeamRequest struct {
