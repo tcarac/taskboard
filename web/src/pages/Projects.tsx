@@ -13,22 +13,26 @@ const DEFAULT_COLORS = [
   "#06b6d4",
 ];
 
-function CreateProjectModal({
+function ProjectModal({
+  project,
   onClose,
-  onCreate,
+  onSave,
 }: {
+  project?: Project;
   onClose: () => void;
-  onCreate: (data: Partial<Project>) => void;
+  onSave: (data: Partial<Project>) => void;
 }) {
-  const [name, setName] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [icon, setIcon] = useState("📋");
-  const [color, setColor] = useState(DEFAULT_COLORS[0]);
+  const isEdit = !!project;
+  const [name, setName] = useState(project?.name || "");
+  const [prefix, setPrefix] = useState(project?.prefix || "");
+  const [icon, setIcon] = useState(project?.icon || "📋");
+  const [color, setColor] = useState(project?.color || DEFAULT_COLORS[0]);
+  const [status, setStatus] = useState(project?.status || "active");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !prefix.trim()) return;
-    onCreate({ name, prefix: prefix.toUpperCase(), icon, color, status: "active" });
+    onSave({ name, prefix: prefix.toUpperCase(), icon, color, status });
   };
 
   return (
@@ -38,7 +42,9 @@ function CreateProjectModal({
         className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-5"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">New Project</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {isEdit ? "Edit Project" : "New Project"}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -88,6 +94,22 @@ function CreateProjectModal({
             </div>
           </div>
 
+          {isEdit && (
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 capitalize"
+              >
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Color
@@ -122,7 +144,7 @@ function CreateProjectModal({
             type="submit"
             className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
           >
-            Create Project
+            {isEdit ? "Save Changes" : "Create Project"}
           </button>
         </div>
       </form>
@@ -133,6 +155,7 @@ function CreateProjectModal({
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editProject, setEditProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -152,6 +175,13 @@ export default function Projects() {
   const handleCreate = async (data: Partial<Project>) => {
     await api.projects.create(data);
     setShowCreate(false);
+    load();
+  };
+
+  const handleUpdate = async (data: Partial<Project>) => {
+    if (!editProject) return;
+    await api.projects.update(editProject.id, data);
+    setEditProject(null);
     load();
   };
 
@@ -188,7 +218,8 @@ export default function Projects() {
             {projects.map((project) => (
               <div
                 key={project.id}
-                className="group relative bg-slate-900 border border-slate-700/50 hover:border-slate-600 rounded-xl p-5 transition-colors"
+                onClick={() => setEditProject(project)}
+                className="group relative bg-slate-900 border border-slate-700/50 hover:border-slate-600 rounded-xl p-5 transition-colors cursor-pointer"
               >
                 <div
                   className="absolute inset-x-0 top-0 h-1 rounded-t-xl"
@@ -197,7 +228,10 @@ export default function Projects() {
                 <div className="flex items-start justify-between">
                   <span className="text-2xl">{project.icon}</span>
                   <button
-                    onClick={() => handleDelete(project.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(project.id);
+                    }}
                     className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -225,9 +259,17 @@ export default function Projects() {
       </div>
 
       {showCreate && (
-        <CreateProjectModal
+        <ProjectModal
           onClose={() => setShowCreate(false)}
-          onCreate={handleCreate}
+          onSave={handleCreate}
+        />
+      )}
+
+      {editProject && (
+        <ProjectModal
+          project={editProject}
+          onClose={() => setEditProject(null)}
+          onSave={handleUpdate}
         />
       )}
     </div>

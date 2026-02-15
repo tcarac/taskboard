@@ -15,14 +15,18 @@ import {
 } from "@dnd-kit/core";
 import {
   Calendar,
-  GripVertical,
   AlertTriangle,
   ArrowUp,
   ArrowRight,
   ArrowDown,
   CheckCircle2,
+  FolderKanban,
+  Users,
+  Plus,
 } from "lucide-react";
-import { api, type Ticket, type Project, type BoardColumn } from "../api/client";
+import { api, type Ticket, type Project, type Team, type BoardColumn } from "../api/client";
+import TicketPanel from "../components/TicketPanel";
+import CreateTicketModal from "../components/CreateTicketModal";
 
 const STATUSES = ["todo", "in_progress", "done"];
 const STATUS_LABELS: Record<string, string> = {
@@ -77,14 +81,24 @@ function SubtaskProgress({ subtasks }: { subtasks: Ticket["subtasks"] }) {
 
 function TicketCard({
   ticket,
+  projects,
+  teams,
   isDragging,
+  onClick,
 }: {
   ticket: Ticket;
+  projects: Project[];
+  teams: Team[];
   isDragging?: boolean;
+  onClick?: () => void;
 }) {
+  const project = projects.find((p) => p.id === ticket.projectId);
+  const team = teams.find((t) => t.id === ticket.teamId);
+
   return (
     <div
-      className={`rounded-lg border border-slate-700/50 bg-slate-900 p-3 space-y-2 transition-colors hover:border-slate-600 ${
+      onClick={onClick}
+      className={`rounded-lg border border-slate-700/50 bg-slate-900 p-3 space-y-2 transition-colors hover:border-slate-600 cursor-pointer ${
         isDragging ? "opacity-90 shadow-xl shadow-blue-500/10 rotate-2" : ""
       }`}
     >
@@ -95,6 +109,34 @@ function TicketCard({
         <PriorityBadge priority={ticket.priority} />
       </div>
       <p className="text-sm text-slate-200 leading-snug">{ticket.title}</p>
+      {(project || team) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {project && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                backgroundColor: (project.color || "#3b82f6") + "1a",
+                color: project.color || "#3b82f6",
+              }}
+            >
+              <FolderKanban className="w-3 h-3" />
+              {project.name}
+            </span>
+          )}
+          {team && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                backgroundColor: (team.color || "#8b5cf6") + "1a",
+                color: team.color || "#8b5cf6",
+              }}
+            >
+              <Users className="w-3 h-3" />
+              {team.name}
+            </span>
+          )}
+        </div>
+      )}
       {ticket.dueDate && (
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
           <Calendar className="w-3 h-3" />
@@ -106,7 +148,17 @@ function TicketCard({
   );
 }
 
-function DraggableTicket({ ticket }: { ticket: Ticket }) {
+function DraggableTicket({
+  ticket,
+  projects,
+  teams,
+  onClick,
+}: {
+  ticket: Ticket;
+  projects: Project[];
+  teams: Team[];
+  onClick: () => void;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: ticket.id,
     data: { ticket },
@@ -115,16 +167,11 @@ function DraggableTicket({ ticket }: { ticket: Ticket }) {
   return (
     <div
       ref={setNodeRef}
-      className={`group relative ${isDragging ? "opacity-30" : ""}`}
+      {...listeners}
+      {...attributes}
+      className={`cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
     >
-      <div
-        {...listeners}
-        {...attributes}
-        className="absolute -left-1 top-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-      >
-        <GripVertical className="w-3.5 h-3.5 text-slate-600" />
-      </div>
-      <TicketCard ticket={ticket} />
+      <TicketCard ticket={ticket} projects={projects} teams={teams} onClick={onClick} />
     </div>
   );
 }
@@ -132,9 +179,17 @@ function DraggableTicket({ ticket }: { ticket: Ticket }) {
 function Column({
   status,
   tickets,
+  projects,
+  teams,
+  onTicketClick,
+  onAddTicket,
 }: {
   status: string;
   tickets: Ticket[];
+  projects: Project[];
+  teams: Team[];
+  onTicketClick: (ticket: Ticket) => void;
+  onAddTicket: (status: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -146,6 +201,12 @@ function Column({
           {STATUS_LABELS[status]}
         </h3>
         <span className="text-xs text-slate-600 ml-auto">{tickets.length}</span>
+        <button
+          onClick={() => onAddTicket(status)}
+          className="text-slate-600 hover:text-slate-300 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
       </div>
       <div
         ref={setNodeRef}
@@ -154,7 +215,13 @@ function Column({
         }`}
       >
         {tickets.map((ticket) => (
-          <DraggableTicket key={ticket.id} ticket={ticket} />
+          <DraggableTicket
+            key={ticket.id}
+            ticket={ticket}
+            projects={projects}
+            teams={teams}
+            onClick={() => onTicketClick(ticket)}
+          />
         ))}
         {tickets.length === 0 && (
           <div className="flex items-center justify-center h-24 text-xs text-slate-700 border border-dashed border-slate-800 rounded-lg">
@@ -168,9 +235,12 @@ function Column({
 
 export default function Board() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [createForStatus, setCreateForStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
@@ -191,6 +261,7 @@ export default function Board() {
 
   useEffect(() => {
     api.projects.list().then(setProjects).catch(() => setProjects([]));
+    api.teams.list().then(setTeams).catch(() => setTeams([]));
   }, []);
 
   useEffect(() => {
@@ -266,6 +337,26 @@ export default function Board() {
     }
   };
 
+  const handleTicketClick = (ticket: Ticket) => {
+    setSelectedTicket(ticket);
+  };
+
+  const handleUpdate = async (id: string, data: Partial<Ticket>) => {
+    await api.tickets.update(id, data);
+    loadBoard();
+  };
+
+  const handleDelete = async (id: string) => {
+    await api.tickets.delete(id);
+    loadBoard();
+  };
+
+  const handleCreate = async (data: Partial<Ticket>) => {
+    await api.tickets.create(data);
+    setCreateForStatus(null);
+    loadBoard();
+  };
+
   return (
     <div className="h-full flex flex-col">
       <header className="shrink-0 flex items-center justify-between px-6 h-14 border-b border-slate-800">
@@ -303,19 +394,47 @@ export default function Board() {
                   key={status}
                   status={status}
                   tickets={getColumnTickets(status)}
+                  projects={projects}
+                  teams={teams}
+                  onTicketClick={handleTicketClick}
+                  onAddTicket={setCreateForStatus}
                 />
               ))}
             </div>
             <DragOverlay>
               {activeTicket ? (
                 <div className="w-80">
-                  <TicketCard ticket={activeTicket} isDragging />
+                  <TicketCard ticket={activeTicket} projects={projects} teams={teams} isDragging />
                 </div>
               ) : null}
             </DragOverlay>
-          </DndContext>
+           </DndContext>
         )}
       </div>
+
+      {createForStatus && (
+        <CreateTicketModal
+          projects={projects}
+          teams={teams}
+          defaultStatus={createForStatus}
+          onClose={() => setCreateForStatus(null)}
+          onCreate={handleCreate}
+        />
+      )}
+
+      {selectedTicket && (
+        <TicketPanel
+          ticket={selectedTicket}
+          projects={projects}
+          teams={teams}
+          onClose={() => {
+            setSelectedTicket(null);
+            loadBoard();
+          }}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   );
 }

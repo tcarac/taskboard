@@ -13,20 +13,23 @@ const TEAM_COLORS = [
   "#06b6d4",
 ];
 
-function CreateTeamModal({
+function TeamModal({
+  team,
   onClose,
-  onCreate,
+  onSave,
 }: {
+  team?: Team;
   onClose: () => void;
-  onCreate: (data: Partial<Team>) => void;
+  onSave: (data: Partial<Team>) => void;
 }) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(TEAM_COLORS[0]);
+  const isEdit = !!team;
+  const [name, setName] = useState(team?.name || "");
+  const [color, setColor] = useState(team?.color || TEAM_COLORS[0]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onCreate({ name, color });
+    onSave({ name, color });
   };
 
   return (
@@ -36,7 +39,9 @@ function CreateTeamModal({
         className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-5"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">New Team</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {isEdit ? "Edit Team" : "New Team"}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -94,7 +99,7 @@ function CreateTeamModal({
             type="submit"
             className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
           >
-            Create Team
+            {isEdit ? "Save Changes" : "Create Team"}
           </button>
         </div>
       </form>
@@ -105,6 +110,7 @@ function CreateTeamModal({
 export default function Teams() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editTeam, setEditTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -124,6 +130,13 @@ export default function Teams() {
   const handleCreate = async (data: Partial<Team>) => {
     await api.teams.create(data);
     setShowCreate(false);
+    load();
+  };
+
+  const handleUpdate = async (data: Partial<Team>) => {
+    if (!editTeam) return;
+    await api.teams.update(editTeam.id, data);
+    setEditTeam(null);
     load();
   };
 
@@ -160,7 +173,8 @@ export default function Teams() {
             {teams.map((team) => (
               <div
                 key={team.id}
-                className="group relative bg-slate-900 border border-slate-700/50 hover:border-slate-600 rounded-xl p-5 transition-colors"
+                onClick={() => setEditTeam(team)}
+                className="group relative bg-slate-900 border border-slate-700/50 hover:border-slate-600 rounded-xl p-5 transition-colors cursor-pointer"
               >
                 <div
                   className="absolute inset-x-0 top-0 h-1 rounded-t-xl"
@@ -174,7 +188,10 @@ export default function Teams() {
                     {team.name.slice(0, 2).toUpperCase()}
                   </div>
                   <button
-                    onClick={() => handleDelete(team.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(team.id);
+                    }}
                     className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -193,9 +210,17 @@ export default function Teams() {
       </div>
 
       {showCreate && (
-        <CreateTeamModal
+        <TeamModal
           onClose={() => setShowCreate(false)}
-          onCreate={handleCreate}
+          onSave={handleCreate}
+        />
+      )}
+
+      {editTeam && (
+        <TeamModal
+          team={editTeam}
+          onClose={() => setEditTeam(null)}
+          onSave={handleUpdate}
         />
       )}
     </div>
