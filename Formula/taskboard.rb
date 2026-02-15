@@ -1,7 +1,7 @@
 class Taskboard < Formula
   desc 'Local project management with Kanban UI and MCP server for AI assistants'
   homepage 'https://github.com/tcarac/taskboard'
-  version '0.2.0'
+  version '0.3.0'
   license 'MIT'
 
   on_macos do
