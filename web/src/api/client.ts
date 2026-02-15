@@ -2,6 +2,7 @@ export interface Project {
   id: string;
   name: string;
   prefix: string;
+  description: string;
   icon: string;
   color: string;
   status: string;

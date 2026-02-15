@@ -25,6 +25,7 @@ function ProjectModal({
   const isEdit = !!project;
   const [name, setName] = useState(project?.name || "");
   const [prefix, setPrefix] = useState(project?.prefix || "");
+  const [description, setDescription] = useState(project?.description || "");
   const [icon, setIcon] = useState(project?.icon || "📋");
   const [color, setColor] = useState(project?.color || DEFAULT_COLORS[0]);
   const [status, setStatus] = useState(project?.status || "active");
@@ -32,7 +33,7 @@ function ProjectModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !prefix.trim()) return;
-    onSave({ name, prefix: prefix.toUpperCase(), icon, color, status });
+    onSave({ name, prefix: prefix.toUpperCase(), description, icon, color, status });
   };
 
   return (
@@ -92,6 +93,19 @@ function ProjectModal({
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-center text-lg"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Goals, scope, and context for this project…"
+              rows={3}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            />
           </div>
 
           {isEdit && (
@@ -240,6 +254,11 @@ export default function Projects() {
                 <h3 className="mt-3 text-sm font-semibold text-white">
                   {project.name}
                 </h3>
+                {project.description && (
+                  <p className="mt-1 text-xs text-slate-400 line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-xs font-mono text-slate-500">
                     {project.prefix}
