@@ -51,9 +51,10 @@ type jsonSchema struct {
 }
 
 type schemaProp struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description"`
-	Enum        []string `json:"enum,omitempty"`
+	Type        string      `json:"type"`
+	Description string      `json:"description"`
+	Enum        []string    `json:"enum,omitempty"`
+	Items       *jsonSchema `json:"items,omitempty"`
 }
 
 type textContent struct {
@@ -291,6 +292,45 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		json.Unmarshal(args, &a)
 		return s.store.GetBoard(a.ProjectID)
 
+	case "create_subtask":
+		var a struct {
+			TicketID string `json:"ticketId"`
+			Title    string `json:"title"`
+		}
+		json.Unmarshal(args, &a)
+		if a.TicketID == "" || a.Title == "" {
+			return nil, fmt.Errorf("ticketId and title are required")
+		}
+		return s.store.AddSubtask(a.TicketID, models.CreateSubtaskRequest{Title: a.Title})
+
+	case "batch_create_subtasks":
+		var a struct {
+			TicketID string `json:"ticketId"`
+			Subtasks []struct {
+				Title string `json:"title"`
+			} `json:"subtasks"`
+		}
+		json.Unmarshal(args, &a)
+		if a.TicketID == "" || len(a.Subtasks) == 0 {
+			return nil, fmt.Errorf("ticketId and at least one subtask are required")
+		}
+		var created []models.Subtask
+		for _, sub := range a.Subtasks {
+			st, err := s.store.AddSubtask(a.TicketID, models.CreateSubtaskRequest{Title: sub.Title})
+			if err != nil {
+				return nil, fmt.Errorf("creating subtask %q: %w", sub.Title, err)
+			}
+			created = append(created, *st)
+		}
+		return created, nil
+
+	case "delete_subtask":
+		var a struct {
+			ID string `json:"id"`
+		}
+		json.Unmarshal(args, &a)
+		return map[string]bool{"deleted": true}, s.store.DeleteSubtask(a.ID)
+
 	case "toggle_subtask":
 		var a struct {
 			ID string `json:"id"`
@@ -305,9 +345,10 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolDefinitions() []toolDef {
 	return []toolDef{
+		// --- Projects (top-level grouping) ---
 		{
 			Name:        "list_projects",
-			Description: "List all projects with optional status filter",
+			Description: "List all projects with optional status filter. Projects are the top-level grouping — use them like epics or initiatives to organize related work.",
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
@@ -325,15 +366,19 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 			},
 		},
 		{
-			Name:        "create_project",
-			Description: "Create a new project with name, prefix, icon, and color",
+			Name: "create_project",
+			Description: "Create a new project. Projects are the top-level organizational unit (like epics/initiatives). " +
+				"Create a new project for each distinct body of work instead of creating umbrella tickets. " +
+				"Hierarchy: Project → Ticket → Subtask. Never create 'epic' or 'umbrella' tickets — use a project for that. " +
+				"Use the description field to capture the project's goals, scope, and any high-level context.",
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
-					"name":   {Type: "string", Description: "Project name"},
-					"prefix": {Type: "string", Description: "Short prefix for ticket keys (e.g. AUTH)"},
-					"icon":   {Type: "string", Description: "Emoji icon"},
-					"color":  {Type: "string", Description: "Hex color code"},
+					"name":        {Type: "string", Description: "Project name"},
+					"prefix":      {Type: "string", Description: "Short prefix for ticket keys (e.g. AUTH)"},
+					"description": {Type: "string", Description: "Project description — goals, scope, context, and any high-level details about this body of work"},
+					"icon":        {Type: "string", Description: "Emoji icon"},
+					"color":       {Type: "string", Description: "Hex color code"},
 				},
 				Required: []string{"name", "prefix"},
 			},
@@ -344,12 +389,13 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
-					"id":     {Type: "string", Description: "Project ID"},
-					"name":   {Type: "string", Description: "Project name"},
-					"prefix": {Type: "string", Description: "Short prefix"},
-					"icon":   {Type: "string", Description: "Emoji icon"},
-					"color":  {Type: "string", Description: "Hex color"},
-					"status": {Type: "string", Description: "Status", Enum: []string{"active", "archived"}},
+					"id":          {Type: "string", Description: "Project ID"},
+					"name":        {Type: "string", Description: "Project name"},
+					"prefix":      {Type: "string", Description: "Short prefix"},
+					"description": {Type: "string", Description: "Project description — goals, scope, context"},
+					"icon":        {Type: "string", Description: "Emoji icon"},
+					"color":       {Type: "string", Description: "Hex color"},
+					"status":      {Type: "string", Description: "Status", Enum: []string{"active", "archived"}},
 				},
 				Required: []string{"id"},
 			},
@@ -363,6 +409,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Required:   []string{"id"},
 			},
 		},
+		// --- Teams ---
 		{
 			Name:        "list_teams",
 			Description: "List all teams",
@@ -411,6 +458,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Required:   []string{"id"},
 			},
 		},
+		// --- Tickets (tasks within a project) ---
 		{
 			Name:        "list_tickets",
 			Description: "List tickets with optional filters by project, team, status, and priority",
@@ -434,8 +482,11 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 			},
 		},
 		{
-			Name:        "create_ticket",
-			Description: "Create a new ticket with full properties",
+			Name: "create_ticket",
+			Description: "Create a ticket (task) within a project. Tickets are concrete, actionable units of work. " +
+				"Do NOT create 'epic' or 'umbrella' tickets — use create_project for that level of grouping. " +
+				"Use create_subtask or batch_create_subtasks to break tickets into steps. " +
+				"Hierarchy: Project → Ticket → Subtask.",
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
@@ -488,6 +539,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Required:   []string{"id"},
 			},
 		},
+		// --- Board ---
 		{
 			Name:        "get_board",
 			Description: "Get full Kanban board grouped by status columns (todo, in_progress, done)",
@@ -498,9 +550,51 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				},
 			},
 		},
+		// --- Subtasks (steps within a ticket) ---
+		{
+			Name: "create_subtask",
+			Description: "Create a subtask (checklist item) on a ticket. Subtasks break a ticket into verifiable steps. " +
+				"Hierarchy: Project → Ticket → Subtask. Use batch_create_subtasks when adding multiple subtasks at once.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"ticketId": {Type: "string", Description: "Parent ticket ID"},
+					"title":    {Type: "string", Description: "Subtask description"},
+				},
+				Required: []string{"ticketId", "title"},
+			},
+		},
+		{
+			Name: "batch_create_subtasks",
+			Description: "Create multiple subtasks on a ticket at once. More efficient than calling create_subtask repeatedly. " +
+				"Use this when breaking a ticket into its implementation steps.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"ticketId": {Type: "string", Description: "Parent ticket ID"},
+					"subtasks": {Type: "array", Description: "Array of subtask objects, each with a 'title' field", Items: &jsonSchema{
+						Type: "object",
+						Properties: map[string]schemaProp{
+							"title": {Type: "string", Description: "Subtask description"},
+						},
+						Required: []string{"title"},
+					}},
+				},
+				Required: []string{"ticketId", "subtasks"},
+			},
+		},
 		{
 			Name:        "toggle_subtask",
 			Description: "Toggle subtask completion status",
+			InputSchema: jsonSchema{
+				Type:       "object",
+				Properties: map[string]schemaProp{"id": {Type: "string", Description: "Subtask ID"}},
+				Required:   []string{"id"},
+			},
+		},
+		{
+			Name:        "delete_subtask",
+			Description: "Delete a subtask from a ticket",
 			InputSchema: jsonSchema{
 				Type:       "object",
 				Properties: map[string]schemaProp{"id": {Type: "string", Description: "Subtask ID"}},
