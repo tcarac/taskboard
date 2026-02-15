@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        run: npm ci && npm run build
+
+      - name: Embed frontend in binary
+        run: |
+          mkdir -p cmd/taskboard/web/dist
+          cp -r web/dist/* cmd/taskboard/web/dist/
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -ldflags="-s -w" -o taskboard-${{ matrix.suffix }} ./cmd/taskboard
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskboard-${{ matrix.suffix }}
+          path: taskboard-${{ matrix.suffix }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for dir in artifacts/taskboard-*; do
+            name=$(basename "$dir")
+            cp "$dir/$name" "release/$name"
+            chmod +x "release/$name"
+            cd release && tar czf "$name.tar.gz" "$name" && rm "$name" && cd ..
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/*.tar.gz
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Download macOS arm64 tarball and compute SHA
+        id: sha
+        run: |
+          url="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.version }}/taskboard-darwin-arm64.tar.gz"
+          curl -sL "$url" -o taskboard.tar.gz
+          sha=$(shasum -a 256 taskboard.tar.gz | awk '{print $1}')
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew formula
+        run: |
+          sed -i "s|url \".*\"|url \"${{ steps.sha.outputs.url }}\"|" Formula/taskboard.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${{ steps.sha.outputs.sha256 }}\"|" Formula/taskboard.rb
+          sed -i "s|version \".*\"|version \"${{ steps.tag.outputs.version#v }}\"|" Formula/taskboard.rb
+
+      - name: Commit updated formula
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update Homebrew formula for ${{ steps.tag.outputs.version }}"
+          file_pattern: Formula/taskboard.rb
+          branch: main
