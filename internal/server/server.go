@@ -36,7 +36,6 @@ func (s *Server) ListenAndServe(port int) error {
 
 func (s *Server) setupRoutes(webFS fs.FS) {
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
