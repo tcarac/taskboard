@@ -7,7 +7,7 @@ build: frontend
 	go build -o $(BINARY) ./$(BUILD_DIR)
 
 dev:
-	go run ./$(BUILD_DIR) start
+	go run ./$(BUILD_DIR) start --foreground
 
 frontend:
 	cd web && npm install && npm run build
