@@ -98,10 +98,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
       - name: Get tag version
         id: tag
         run: |
@@ -111,6 +107,8 @@ jobs:
 
       - name: Download release tarballs and compute SHAs
         id: sha
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           base_url="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.version }}"
           for arch in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
@@ -122,65 +120,70 @@ jobs:
 
       - name: Generate Homebrew formula
         env:
+          VERSION: ${{ steps.tag.outputs.version_number }}
           SHA_DARWIN_ARM64: ${{ steps.sha.outputs.sha256_darwin_arm64 }}
           SHA_DARWIN_AMD64: ${{ steps.sha.outputs.sha256_darwin_amd64 }}
           SHA_LINUX_ARM64: ${{ steps.sha.outputs.sha256_linux_arm64 }}
           SHA_LINUX_AMD64: ${{ steps.sha.outputs.sha256_linux_amd64 }}
-          VERSION: ${{ steps.tag.outputs.version_number }}
         run: |
-          envsubst << 'EOF' > Formula/taskboard.rb
+          cat > formula.rb << RUBY
           class Taskboard < Formula
-            desc "Local project management with Kanban UI and MCP server for AI assistants"
-            homepage "https://github.com/tcarac/taskboard"
-            version "${VERSION}"
-            license "MIT"
+            desc 'Local project management with Kanban UI and MCP server for AI assistants'
+            homepage 'https://github.com/tcarac/taskboard'
+            version '${VERSION}'
+            license 'MIT'
 
             on_macos do
               if Hardware::CPU.arm?
                 url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-darwin-arm64.tar.gz"
-                sha256 "${SHA_DARWIN_ARM64}"
+                sha256 '${SHA_DARWIN_ARM64}'
               elsif Hardware::CPU.intel?
                 url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-darwin-amd64.tar.gz"
-                sha256 "${SHA_DARWIN_AMD64}"
+                sha256 '${SHA_DARWIN_AMD64}'
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
                 url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-linux-arm64.tar.gz"
-                sha256 "${SHA_LINUX_ARM64}"
+                sha256 '${SHA_LINUX_ARM64}'
               elsif Hardware::CPU.intel?
                 url "https://github.com/tcarac/taskboard/releases/download/v#{version}/taskboard-linux-amd64.tar.gz"
-                sha256 "${SHA_LINUX_AMD64}"
+                sha256 '${SHA_LINUX_AMD64}'
               end
             end
 
             def install
               if OS.mac?
                 if Hardware::CPU.arm?
-                  bin.install "taskboard-darwin-arm64" => "taskboard"
+                  bin.install 'taskboard-darwin-arm64' => 'taskboard'
                 else
-                  bin.install "taskboard-darwin-amd64" => "taskboard"
+                  bin.install 'taskboard-darwin-amd64' => 'taskboard'
                 end
               elsif OS.linux?
                 if Hardware::CPU.arm?
-                  bin.install "taskboard-linux-arm64" => "taskboard"
+                  bin.install 'taskboard-linux-arm64' => 'taskboard'
                 else
-                  bin.install "taskboard-linux-amd64" => "taskboard"
+                  bin.install 'taskboard-linux-amd64' => 'taskboard'
                 end
               end
             end
 
             test do
-              assert_match "taskboard", shell_output("#{bin}/taskboard --help")
+              assert_match 'taskboard', shell_output("#{bin}/taskboard --help")
             end
           end
-          EOF
-          sed -i 's/^          //' Formula/taskboard.rb
+          RUBY
+          sed -i 's/^          //' formula.rb
 
-      - name: Commit updated formula
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: update Homebrew formula for ${{ steps.tag.outputs.version }}"
-          file_pattern: Formula/taskboard.rb
-          branch: main
+      - name: Push formula to Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          content=$(base64 -w 0 formula.rb)
+          sha=$(gh api repos/tcarac/homebrew-taskboard/contents/Formula/taskboard.rb --jq '.sha')
+          gh api repos/tcarac/homebrew-taskboard/contents/Formula/taskboard.rb \
+            -X PUT \
+            -f message="chore: update formula for ${{ steps.tag.outputs.version }}" \
+            -f content="$content" \
+            -f sha="$sha"
