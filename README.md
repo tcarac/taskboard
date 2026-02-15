@@ -109,6 +109,28 @@ Add to `~/.claude/claude_desktop_config.json`:
 | `get_board` | Get full Kanban board grouped by status |
 | `toggle_subtask` | Toggle subtask completion |
 
+#### Example Prompts
+
+Once the MCP is connected, you can talk to your AI assistant in high-level terms and let it figure out the breakdown:
+
+```
+I'm building a SaaS billing system. Set up the project and break the work
+into tickets covering Stripe integration, usage metering, invoice generation,
+and a customer billing portal. Prioritize accordingly.
+```
+
+```
+I need to ship a password reset flow. Think through what's involved — API
+endpoints, email templates, token handling, UI screens, tests — and create
+tickets with subtasks for each piece.
+```
+
+```
+Look at my board and figure out what's blocking progress. If anything in
+"in progress" has been sitting there without subtasks, break it down into
+concrete next steps.
+```
+
 ## Data Storage
 
 All data is stored in a SQLite database at:
