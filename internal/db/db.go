@@ -16,7 +16,7 @@ var migrationsFS embed.FS
 var migrations = "migrations"
 
 func Open() (*sql.DB, error) {
-	dbPath, err := defaultDBPath()
+	dbPath, err := DefaultDBPath()
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func OpenAt(dbPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-func defaultDBPath() (string, error) {
+func DefaultDBPath() (string, error) {
 	dataDir, err := os.UserConfigDir()
 	if err != nil {
 		home, err2 := os.UserHomeDir()

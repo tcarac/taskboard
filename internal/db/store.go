@@ -18,6 +18,32 @@ func NewStore(database *sql.DB) *Store {
 	return &Store{db: database}
 }
 
+func (s *Store) ClearData() error {
+	tables := []string{
+		"ticket_dependencies",
+		"ticket_labels",
+		"subtasks",
+		"tickets",
+		"labels",
+		"teams",
+		"projects",
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+
+	for _, table := range tables {
+		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("clearing %s: %w", table, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 func newID() string {
 	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 }
