@@ -4,6 +4,12 @@ A local, self-hosted project management tool with a Kanban UI, full CLI, and a b
 
 Single binary. SQLite-backed. No Docker, no external database, no runtime dependencies.
 
+## Screenshots
+
+![Kanban Board](screenshots/board.png)
+
+![Ticket Detail](screenshots/ticket-detail.png)
+
 ## Features
 
 - **Kanban Board** — drag-and-drop ticket management across Todo, In Progress, and Done columns
@@ -150,6 +156,12 @@ Look at my board and figure out what's blocking progress. If anything in
 concrete next steps.
 ```
 
+Here's what that looks like — a project and tickets created entirely by an AI assistant via MCP:
+
+![Project created by AI](screenshots/project.png)
+
+![Tickets list](screenshots/tickets.png)
+
 ## Data Storage
 
 All data is stored in a SQLite database at:
@@ -158,6 +170,31 @@ All data is stored in a SQLite database at:
 - **Linux**: `~/.config/taskboard/taskboard.db`
 
 Migrations run automatically on first start.
+
+### Custom Database Path
+
+Use `--db` to point any command at a different database file:
+
+```bash
+taskboard --db /path/to/other.db start
+taskboard --db /path/to/other.db mcp
+taskboard --db /path/to/other.db ticket list
+```
+
+### Clearing Data
+
+To wipe all projects, tickets, teams, and labels while keeping the schema intact:
+
+```bash
+taskboard clear        # prompts for confirmation
+taskboard clear -f     # skip confirmation
+```
+
+This also respects `--db`, so you can clear a specific database file:
+
+```bash
+taskboard --db /tmp/test.db clear -f
+```
 
 ## Tech Stack
 
