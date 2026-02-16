@@ -66,7 +66,7 @@ export default function Layout() {
 
         <div className="px-5 py-3 border-t border-slate-800">
           <p className="text-[10px] text-slate-600 tracking-wider uppercase">
-            v0.1.0
+            v0.6.0
           </p>
         </div>
       </aside>
