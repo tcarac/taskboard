@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -5,7 +6,9 @@ import {
   Users,
   Ticket,
   Zap,
+  TerminalSquare,
 } from "lucide-react";
+import TerminalPanel from "./TerminalPanel";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Board" },
@@ -15,6 +18,8 @@ const navItems = [
 ];
 
 export default function Layout() {
+  const [terminalOpen, setTerminalOpen] = useState(false);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="w-56 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
@@ -45,6 +50,20 @@ export default function Layout() {
           ))}
         </nav>
 
+        <div className="px-2.5 pb-2">
+          <button
+            onClick={() => setTerminalOpen((v) => !v)}
+            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-colors w-full ${
+              terminalOpen
+                ? "bg-blue-500/15 text-blue-400"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            }`}
+          >
+            <TerminalSquare className="w-4 h-4" />
+            Terminal
+          </button>
+        </div>
+
         <div className="px-5 py-3 border-t border-slate-800">
           <p className="text-[10px] text-slate-600 tracking-wider uppercase">
             v0.1.0
@@ -52,9 +71,15 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-slate-950">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 overflow-auto bg-slate-950">
+          <Outlet />
+        </main>
+        <TerminalPanel
+          isOpen={terminalOpen}
+          onClose={() => setTerminalOpen(false)}
+        />
+      </div>
     </div>
   );
 }

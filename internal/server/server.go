@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
+	"os/exec"
+	"sync"
 
+	"github.com/creack/pty"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/gorilla/websocket"
 	"github.com/tcarac/taskboard/internal/db"
 	"github.com/tcarac/taskboard/internal/models"
 )
@@ -85,6 +90,7 @@ func (s *Server) setupRoutes(webFS fs.FS) {
 		})
 
 		r.Get("/board", s.getBoard)
+		r.Get("/terminal/ws", s.handleTerminalWS)
 	})
 
 	if webFS != nil {
@@ -450,4 +456,77 @@ func (s *Server) getBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, board)
+}
+
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := wsUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+	cmd := exec.Command(shell)
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"failed to start terminal"}`))
+		return
+	}
+	defer ptmx.Close()
+
+	var once sync.Once
+	cleanup := func() {
+		once.Do(func() {
+			cmd.Process.Kill()
+			cmd.Wait()
+		})
+	}
+	defer cleanup()
+
+	// PTY → WebSocket
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := ptmx.Read(buf)
+			if err != nil {
+				conn.Close()
+				return
+			}
+			if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+				return
+			}
+		}
+	}()
+
+	// WebSocket → PTY
+	for {
+		msgType, msg, err := conn.ReadMessage()
+		if err != nil {
+			cleanup()
+			return
+		}
+
+		switch msgType {
+		case websocket.BinaryMessage:
+			ptmx.Write(msg)
+		case websocket.TextMessage:
+			var ctrl struct {
+				Type string `json:"type"`
+				Cols uint16 `json:"cols"`
+				Rows uint16 `json:"rows"`
+			}
+			if json.Unmarshal(msg, &ctrl) == nil && ctrl.Type == "resize" {
+				pty.Setsize(ptmx, &pty.Winsize{Cols: ctrl.Cols, Rows: ctrl.Rows})
+			}
+		}
+	}
 }

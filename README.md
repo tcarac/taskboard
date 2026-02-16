@@ -16,6 +16,7 @@ Single binary. SQLite-backed. No Docker, no external database, no runtime depend
 - **Projects** — organize work with customizable projects (icons, colors, prefixes)
 - **Teams** — assign tickets to teams
 - **Tickets** — priority levels, due dates, labels, subtasks, dependencies (blocked by)
+- **Embedded Terminal** — run AI coding agents (opencode, Claude Code) directly from the web UI
 - **CLI** — manage everything from the terminal
 - **MCP Server** — 22 tools for AI-native project management via Model Context Protocol
 - **Self-Hosted** — your data stays on your machine in a SQLite database
@@ -162,6 +163,14 @@ Here's what that looks like — a project and tickets created entirely by an AI 
 
 ![Tickets list](screenshots/tickets.png)
 
+### Embedded Terminal
+
+The web UI includes a built-in terminal. Click **Terminal** in the sidebar to open a full PTY shell with color support and a resizable panel. Run `opencode`, `claude`, or any command directly from the browser.
+
+![Embedded Terminal](screenshots/terminal.png)
+
+The agent shares the same SQLite database via MCP, so tickets it creates show up on your board immediately.
+
 ## Data Storage
 
 All data is stored in a SQLite database at:
@@ -205,6 +214,7 @@ taskboard --db /tmp/test.db clear -f
 | CLI          | cobra                                               |
 | HTTP         | chi                                                 |
 | Frontend     | React, TypeScript, Tailwind CSS v4, dnd-kit         |
+| Terminal     | xterm.js, gorilla/websocket, creack/pty             |
 | MCP          | JSON-RPC over stdio                                 |
 | Distribution | Single binary with embedded frontend via `embed.FS` |
 
