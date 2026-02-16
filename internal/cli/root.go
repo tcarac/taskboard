@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"database/sql"
 	"fmt"
 	"io/fs"
 	"os"
@@ -19,6 +20,7 @@ import (
 var (
 	port       int
 	foreground bool
+	dbPath     string
 )
 
 func NewRootCmd(webFS fs.FS) *cobra.Command {
@@ -26,6 +28,7 @@ func NewRootCmd(webFS fs.FS) *cobra.Command {
 		Use:   "taskboard",
 		Short: "Local project management with Kanban UI and MCP server",
 	}
+	root.PersistentFlags().StringVar(&dbPath, "db", "", "path to SQLite database file (default: OS config dir)")
 
 	startCmd := &cobra.Command{
 		Use:   "start",
@@ -34,7 +37,7 @@ func NewRootCmd(webFS fs.FS) *cobra.Command {
 			if !foreground {
 				return daemonize(port)
 			}
-			database, err := db.Open()
+			database, err := openDB()
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}
@@ -86,7 +89,7 @@ func NewRootCmd(webFS fs.FS) *cobra.Command {
 		Use:   "mcp",
 		Short: "Start MCP stdio server for AI assistants",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			database, err := db.Open()
+			database, err := openDB()
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}
@@ -96,7 +99,35 @@ func NewRootCmd(webFS fs.FS) *cobra.Command {
 		},
 	}
 
-	root.AddCommand(startCmd, stopCmd, mcpCmd)
+	clearCmd := &cobra.Command{
+		Use:   "clear",
+		Short: "Delete all data from the database (keeps schema intact)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			force, _ := cmd.Flags().GetBool("force")
+			if !force {
+				fmt.Print("This will delete all projects, tickets, teams, and labels. Continue? [y/N] ")
+				var answer string
+				fmt.Scanln(&answer)
+				if answer != "y" && answer != "Y" {
+					fmt.Println("Aborted.")
+					return nil
+				}
+			}
+
+			store, err := openStore()
+			if err != nil {
+				return fmt.Errorf("opening database: %w", err)
+			}
+			if err := store.ClearData(); err != nil {
+				return fmt.Errorf("clearing data: %w", err)
+			}
+			fmt.Println("All data cleared.")
+			return nil
+		},
+	}
+	clearCmd.Flags().BoolP("force", "f", false, "skip confirmation prompt")
+
+	root.AddCommand(startCmd, stopCmd, mcpCmd, clearCmd)
 	root.AddCommand(projectCommands())
 	root.AddCommand(teamCommands())
 	root.AddCommand(ticketCommands())
@@ -110,8 +141,15 @@ func Execute(webFS fs.FS) {
 	}
 }
 
+func openDB() (*sql.DB, error) {
+	if dbPath != "" {
+		return db.OpenAt(dbPath)
+	}
+	return db.Open()
+}
+
 func openStore() (*db.Store, error) {
-	database, err := db.Open()
+	database, err := openDB()
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +175,11 @@ func daemonize(port int) error {
 		return fmt.Errorf("finding executable: %w", err)
 	}
 
-	cmd := exec.Command(exe, "start", "--port", strconv.Itoa(port), "--foreground")
+	daemonArgs := []string{"start", "--port", strconv.Itoa(port), "--foreground"}
+	if dbPath != "" {
+		daemonArgs = append([]string{"--db", dbPath}, daemonArgs...)
+	}
+	cmd := exec.Command(exe, daemonArgs...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	if err := cmd.Start(); err != nil {
