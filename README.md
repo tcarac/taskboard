@@ -4,6 +4,8 @@ A local, self-hosted project management tool with a Kanban UI, full CLI, and a b
 
 Single binary. SQLite-backed. No Docker, no external database, no runtime dependencies.
 
+[![Hypercommit](https://img.shields.io/badge/Hypercommit-DB2475)](https://hypercommit.com/taskboard)
+
 ## Screenshots
 
 ![Kanban Board](screenshots/board.png)
