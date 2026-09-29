@@ -40,3 +40,37 @@ jobs:
 
       - name: Run Go tests
         run: go test ./...
+
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        run: npm ci && npm run build
+
+      - name: Embed frontend
+        run: |
+          New-Item -ItemType Directory -Path cmd/taskboard/web/dist -Force
+          Copy-Item -Path web/dist/* -Destination cmd/taskboard/web/dist/ -Recurse -Force
+
+      - name: Build binary
+        run: go build -o taskboard.exe ./cmd/taskboard
+
+      - name: Verify binary
+        run: ./taskboard.exe --help
+
+      - name: Run Go tests
+        run: go test ./...
