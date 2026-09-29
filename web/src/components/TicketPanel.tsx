@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Trash2, CheckCircle2, Circle, Pencil, Eye } from "lucide-react";
 import Markdown from "react-markdown";
 import { api, type Ticket, type Project, type Team, type Subtask } from "../api/client";
@@ -37,6 +37,13 @@ export default function TicketPanel({
   const [newSubtask, setNewSubtask] = useState("");
   const [dirty, setDirty] = useState(false);
   const [descMode, setDescMode] = useState<"preview" | "write">(description ? "preview" : "write");
+
+  useEffect(() => {
+    // Preserve unsaved form edits while refreshing remote status and subtasks.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!dirty) setStatus(ticket.status);
+    setSubtasks(ticket.subtasks || []);
+  }, [ticket.id, ticket.status, ticket.subtasks, dirty]);
 
   const markDirty = () => setDirty(true);
 
