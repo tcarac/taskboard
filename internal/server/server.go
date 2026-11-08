@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -302,6 +303,10 @@ func (s *Server) createTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.store.CreateTicket(req)
+	if errors.Is(err, db.ErrInvalidStatus) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -316,6 +321,10 @@ func (s *Server) updateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.store.UpdateTicket(chi.URLParam(r, "id"), req)
+	if errors.Is(err, db.ErrInvalidStatus) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -338,6 +347,10 @@ func (s *Server) moveTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.store.MoveTicket(chi.URLParam(r, "id"), req)
+	if errors.Is(err, db.ErrInvalidStatus) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

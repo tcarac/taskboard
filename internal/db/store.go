@@ -3,12 +3,16 @@ package db
 import (
 	"crypto/rand"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/oklog/ulid/v2"
 	"github.com/tcarac/taskboard/internal/models"
 )
+
+// ErrInvalidStatus возвращается, когда передан статус, которого нет в models.TicketStatuses.
+var ErrInvalidStatus = errors.New("invalid ticket status")
 
 type Store struct {
 	db *sql.DB
@@ -306,6 +310,9 @@ func (s *Store) CreateTicket(req models.CreateTicketRequest) (*models.Ticket, er
 	if status == "" {
 		status = "todo"
 	}
+	if !models.IsValidTicketStatus(status) {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidStatus, status)
+	}
 	priority := req.Priority
 	if priority == "" {
 		priority = "medium"
@@ -369,6 +376,9 @@ func (s *Store) UpdateTicket(id string, req models.UpdateTicketRequest) (*models
 		t.Description = *req.Description
 	}
 	if req.Status != nil {
+		if !models.IsValidTicketStatus(*req.Status) {
+			return nil, fmt.Errorf("%w: %q", ErrInvalidStatus, *req.Status)
+		}
 		t.Status = *req.Status
 	}
 	if req.Priority != nil {
@@ -414,6 +424,9 @@ func (s *Store) UpdateTicket(id string, req models.UpdateTicketRequest) (*models
 }
 
 func (s *Store) MoveTicket(id string, req models.MoveTicketRequest) (*models.Ticket, error) {
+	if !models.IsValidTicketStatus(req.Status) {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidStatus, req.Status)
+	}
 	now := time.Now()
 	position := float64(0)
 	if req.Position != nil {
@@ -438,7 +451,7 @@ func (s *Store) DeleteTicket(id string) error {
 }
 
 func (s *Store) GetBoard(projectID string) (*models.Board, error) {
-	statuses := []string{"todo", "in_progress", "done"}
+	statuses := models.TicketStatuses
 	board := &models.Board{
 		ProjectID: projectID,
 		Columns:   make([]models.Column, len(statuses)),

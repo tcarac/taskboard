@@ -2,15 +2,9 @@ import { useState } from "react";
 import { X, Trash2, CheckCircle2, Circle, Pencil, Eye } from "lucide-react";
 import Markdown from "react-markdown";
 import { api, type Ticket, type Project, type Team, type Subtask } from "../api/client";
+import { STATUSES, STATUS_LABELS } from "../lib/statuses";
 
-const STATUSES = ["todo", "in_progress", "done"];
 const PRIORITIES = ["urgent", "high", "medium", "low"];
-
-const STATUS_LABELS: Record<string, string> = {
-  todo: "Todo",
-  in_progress: "In Progress",
-  done: "Done",
-};
 
 export default function TicketPanel({
   ticket,

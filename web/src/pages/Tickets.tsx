@@ -12,21 +12,9 @@ import {
 import { api, type Ticket, type Project, type Team } from "../api/client";
 import TicketPanel from "../components/TicketPanel";
 import CreateTicketModal from "../components/CreateTicketModal";
+import { STATUSES, STATUS_LABELS, STATUS_STYLES } from "../lib/statuses";
 
-const STATUSES = ["todo", "in_progress", "done"];
 const PRIORITIES = ["urgent", "high", "medium", "low"];
-
-const STATUS_STYLES: Record<string, string> = {
-  todo: "bg-slate-500/20 text-slate-400",
-  in_progress: "bg-blue-500/20 text-blue-400",
-  done: "bg-green-500/20 text-green-400",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  todo: "Todo",
-  in_progress: "In Progress",
-  done: "Done",
-};
 
 const PRIORITY_CONFIG: Record<string, { style: string; icon: typeof ArrowUp }> = {
   urgent: { style: "bg-red-500/20 text-red-400", icon: AlertTriangle },
