@@ -296,6 +296,27 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 	case "list_labels":
 		return s.store.ListLabels()
 
+	case "create_label":
+		var a models.CreateLabelRequest
+		json.Unmarshal(args, &a)
+		return s.store.CreateLabel(a)
+
+	case "add_label":
+		var a struct {
+			TicketID string `json:"ticketId"`
+			Label    string `json:"label"`
+		}
+		json.Unmarshal(args, &a)
+		return s.store.AddLabelToTicket(a.TicketID, a.Label)
+
+	case "remove_label":
+		var a struct {
+			TicketID string `json:"ticketId"`
+			Label    string `json:"label"`
+		}
+		json.Unmarshal(args, &a)
+		return s.store.RemoveLabelFromTicket(a.TicketID, a.Label)
+
 	case "create_subtask":
 		var a struct {
 			TicketID string `json:"ticketId"`
@@ -467,6 +488,42 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 			Name:        "list_labels",
 			Description: "List all tags (labels). Tags group tickets into sections such as waves or plan stages.",
 			InputSchema: jsonSchema{Type: "object"},
+		},
+		{
+			Name:        "create_label",
+			Description: "Create a tag. If a tag with this name already exists, the existing tag is returned.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"name":  {Type: "string", Description: "Tag name, e.g. \"первая волна работ\""},
+					"color": {Type: "string", Description: "Hex color, e.g. #3B82F6 (optional)"},
+				},
+				Required: []string{"name"},
+			},
+		},
+		{
+			Name:        "add_label",
+			Description: "Attach a tag to a ticket without removing its other tags. The tag is looked up by ID or name (case-insensitive) and created if it does not exist.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"ticketId": {Type: "string", Description: "Ticket ID"},
+					"label":    {Type: "string", Description: "Tag name or tag ID"},
+				},
+				Required: []string{"ticketId", "label"},
+			},
+		},
+		{
+			Name:        "remove_label",
+			Description: "Detach a tag from a ticket. The tag itself is kept.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"ticketId": {Type: "string", Description: "Ticket ID"},
+					"label":    {Type: "string", Description: "Tag name or tag ID"},
+				},
+				Required: []string{"ticketId", "label"},
+			},
 		},
 		// --- Tickets (tasks within a project) ---
 		{

@@ -562,10 +562,70 @@ func (s *Store) resolveLabelIDs(refs []string) ([]string, error) {
 	return ids, nil
 }
 
+// CreateLabel создаёт тег. Если тег с таким именем (без учёта регистра) уже есть, возвращает его.
 func (s *Store) CreateLabel(req models.CreateLabelRequest) (*models.Label, error) {
-	l := models.Label{ID: newID(), Name: req.Name, Color: req.Color}
-	_, err := s.db.Exec("INSERT INTO labels (id, name, color) VALUES (?, ?, ?)", l.ID, l.Name, l.Color)
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, fmt.Errorf("label name is required")
+	}
+	if req.Color == "" {
+		req.Color = "#64748B"
+	}
+	found, err := s.findLabelIDs(name)
+	if err != nil {
+		return nil, err
+	}
+	if len(found) > 0 {
+		var l models.Label
+		err := s.db.QueryRow("SELECT id, name, color FROM labels WHERE id = ?", found[0]).Scan(&l.ID, &l.Name, &l.Color)
+		return &l, err
+	}
+	l := models.Label{ID: newID(), Name: name, Color: req.Color}
+	_, err = s.db.Exec("INSERT INTO labels (id, name, color) VALUES (?, ?, ?)", l.ID, l.Name, l.Color)
 	return &l, err
+}
+
+// AddLabelToTicket добавляет тег к тикету. ref — ID или имя тега; несуществующий тег создаётся.
+func (s *Store) AddLabelToTicket(ticketID, ref string) (*models.Ticket, error) {
+	t, err := s.GetTicket(ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, fmt.Errorf("ticket not found")
+	}
+	ids, err := s.resolveLabelIDs([]string{ref})
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("label name is required")
+	}
+	if _, err := s.db.Exec("INSERT OR IGNORE INTO ticket_labels (ticket_id, label_id) VALUES (?, ?)", ticketID, ids[0]); err != nil {
+		return nil, err
+	}
+	return s.GetTicket(ticketID)
+}
+
+// RemoveLabelFromTicket снимает тег с тикета (ID или имя). Сам тег в системе остаётся.
+func (s *Store) RemoveLabelFromTicket(ticketID, ref string) (*models.Ticket, error) {
+	t, err := s.GetTicket(ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, fmt.Errorf("ticket not found")
+	}
+	ids, err := s.findLabelIDs(strings.TrimSpace(ref))
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		if _, err := s.db.Exec("DELETE FROM ticket_labels WHERE ticket_id = ? AND label_id = ?", ticketID, id); err != nil {
+			return nil, err
+		}
+	}
+	return s.GetTicket(ticketID)
 }
 
 func (s *Store) UpdateLabel(id string, req models.UpdateLabelRequest) (*models.Label, error) {
