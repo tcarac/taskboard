@@ -188,4 +188,5 @@ type TicketFilter struct {
 	TeamID    string
 	Status    string
 	Priority  string
+	Label     string // ID или имя тега
 }

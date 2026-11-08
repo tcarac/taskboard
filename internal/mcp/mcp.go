@@ -288,9 +288,13 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 	case "get_board":
 		var a struct {
 			ProjectID string `json:"projectId"`
+			Label     string `json:"label"`
 		}
 		json.Unmarshal(args, &a)
-		return s.store.GetBoard(a.ProjectID)
+		return s.store.GetBoard(a.ProjectID, a.Label)
+
+	case "list_labels":
+		return s.store.ListLabels()
 
 	case "create_subtask":
 		var a struct {
@@ -458,10 +462,16 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Required:   []string{"id"},
 			},
 		},
+		// --- Labels (tags for grouping tickets into sections, e.g. "wave 1") ---
+		{
+			Name:        "list_labels",
+			Description: "List all tags (labels). Tags group tickets into sections such as waves or plan stages.",
+			InputSchema: jsonSchema{Type: "object"},
+		},
 		// --- Tickets (tasks within a project) ---
 		{
 			Name:        "list_tickets",
-			Description: "List tickets with optional filters by project, team, status, and priority",
+			Description: "List tickets with optional filters by project, team, status, priority, and tag",
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
@@ -469,6 +479,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 					"teamId":    {Type: "string", Description: "Filter by team ID"},
 					"status":    {Type: "string", Description: "Filter by status", Enum: models.TicketStatuses},
 					"priority":  {Type: "string", Description: "Filter by priority", Enum: []string{"urgent", "high", "medium", "low"}},
+					"label":     {Type: "string", Description: "Filter by tag name or ID"},
 				},
 			},
 		},
@@ -497,6 +508,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 					"priority":    {Type: "string", Description: "Priority level", Enum: []string{"urgent", "high", "medium", "low"}},
 					"teamId":      {Type: "string", Description: "Team ID"},
 					"dueDate":     {Type: "string", Description: "Due date (YYYY-MM-DD)"},
+					"labels":      {Type: "array", Description: "Tag names (created automatically if new). Replaces existing tags on update.", Items: &jsonSchema{Type: "string"}},
 				},
 				Required: []string{"projectId", "title"},
 			},
@@ -514,6 +526,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 					"priority":    {Type: "string", Description: "Priority", Enum: []string{"urgent", "high", "medium", "low"}},
 					"teamId":      {Type: "string", Description: "Team ID"},
 					"dueDate":     {Type: "string", Description: "Due date (YYYY-MM-DD)"},
+					"labels":      {Type: "array", Description: "Tag names (created automatically if new). Replaces existing tags on update.", Items: &jsonSchema{Type: "string"}},
 				},
 				Required: []string{"id"},
 			},
@@ -547,6 +560,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Type: "object",
 				Properties: map[string]schemaProp{
 					"projectId": {Type: "string", Description: "Filter by project ID (optional)"},
+					"label":     {Type: "string", Description: "Show only tickets with this tag name or ID (optional)"},
 				},
 			},
 		},

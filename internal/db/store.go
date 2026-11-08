@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -245,6 +246,21 @@ func (s *Store) ListTickets(filter models.TicketFilter) ([]models.Ticket, error)
 		query += " AND t.priority = ?"
 		args = append(args, filter.Priority)
 	}
+	if filter.Label != "" {
+		labelIDs, err := s.findLabelIDs(filter.Label)
+		if err != nil {
+			return nil, err
+		}
+		if len(labelIDs) == 0 {
+			query += " AND 0 = 1"
+		} else {
+			placeholders := strings.TrimSuffix(strings.Repeat("?,", len(labelIDs)), ",")
+			query += " AND t.id IN (SELECT ticket_id FROM ticket_labels WHERE label_id IN (" + placeholders + "))"
+			for _, id := range labelIDs {
+				args = append(args, id)
+			}
+		}
+	}
 	query += " ORDER BY t.position ASC, t.created_at DESC"
 
 	rows, err := s.db.Query(query, args...)
@@ -349,7 +365,11 @@ func (s *Store) CreateTicket(req models.CreateTicketRequest) (*models.Ticket, er
 	}
 
 	if len(req.Labels) > 0 {
-		for _, labelID := range req.Labels {
+		labelIDs, err := s.resolveLabelIDs(req.Labels)
+		if err != nil {
+			return nil, err
+		}
+		for _, labelID := range labelIDs {
 			s.db.Exec("INSERT OR IGNORE INTO ticket_labels (ticket_id, label_id) VALUES (?, ?)", t.ID, labelID)
 		}
 	}
@@ -407,8 +427,12 @@ func (s *Store) UpdateTicket(id string, req models.UpdateTicketRequest) (*models
 	}
 
 	if req.Labels != nil {
+		labelIDs, err := s.resolveLabelIDs(req.Labels)
+		if err != nil {
+			return nil, err
+		}
 		s.db.Exec("DELETE FROM ticket_labels WHERE ticket_id = ?", id)
-		for _, labelID := range req.Labels {
+		for _, labelID := range labelIDs {
 			s.db.Exec("INSERT OR IGNORE INTO ticket_labels (ticket_id, label_id) VALUES (?, ?)", id, labelID)
 		}
 	}
@@ -450,7 +474,7 @@ func (s *Store) DeleteTicket(id string) error {
 	return err
 }
 
-func (s *Store) GetBoard(projectID string) (*models.Board, error) {
+func (s *Store) GetBoard(projectID, label string) (*models.Board, error) {
 	statuses := models.TicketStatuses
 	board := &models.Board{
 		ProjectID: projectID,
@@ -458,7 +482,7 @@ func (s *Store) GetBoard(projectID string) (*models.Board, error) {
 	}
 
 	for i, status := range statuses {
-		filter := models.TicketFilter{Status: status}
+		filter := models.TicketFilter{Status: status, Label: label}
 		if projectID != "" {
 			filter.ProjectID = projectID
 		}
@@ -494,6 +518,48 @@ func (s *Store) ListLabels() ([]models.Label, error) {
 		labels = append(labels, l)
 	}
 	return labels, rows.Err()
+}
+
+// findLabelIDs возвращает ID тегов, подходящих под ссылку: точный ID или имя без учёта регистра
+// (strings.EqualFold корректно работает и с кириллицей, в отличие от SQLite NOCASE).
+func (s *Store) findLabelIDs(ref string) ([]string, error) {
+	labels, err := s.ListLabels()
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, l := range labels {
+		if l.ID == ref || strings.EqualFold(l.Name, ref) {
+			ids = append(ids, l.ID)
+		}
+	}
+	return ids, nil
+}
+
+// resolveLabelIDs превращает ссылки на теги (ID или имя) в ID.
+// Если тег с таким именем не найден, он создаётся с серым цветом по умолчанию.
+func (s *Store) resolveLabelIDs(refs []string) ([]string, error) {
+	ids := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		found, err := s.findLabelIDs(ref)
+		if err != nil {
+			return nil, err
+		}
+		if len(found) > 0 {
+			ids = append(ids, found[0])
+			continue
+		}
+		id := newID()
+		if _, err := s.db.Exec("INSERT INTO labels (id, name, color) VALUES (?, ?, ?)", id, ref, "#64748B"); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func (s *Store) CreateLabel(req models.CreateLabelRequest) (*models.Label, error) {

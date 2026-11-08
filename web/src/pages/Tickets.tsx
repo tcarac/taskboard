@@ -8,11 +8,13 @@ import {
   ArrowDown,
   Calendar,
   Ticket as TicketIcon,
+  Tag as TagIcon,
 } from "lucide-react";
-import { api, type Ticket, type Project, type Team } from "../api/client";
+import { api, type Ticket, type TicketInput, type Project, type Team } from "../api/client";
 import TicketPanel from "../components/TicketPanel";
 import CreateTicketModal from "../components/CreateTicketModal";
 import { STATUSES, STATUS_LABELS, STATUS_STYLES } from "../lib/statuses";
+import { allTags, groupByTag, tagNames } from "../lib/tags";
 
 const PRIORITIES = ["urgent", "high", "medium", "low"];
 
@@ -60,6 +62,8 @@ export default function Tickets() {
   const [filterProject, setFilterProject] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
+  const [filterTag, setFilterTag] = useState("");
+  const [groupByTags, setGroupByTags] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -87,16 +91,20 @@ export default function Tickets() {
     if (filterProject && t.projectId !== filterProject) return false;
     if (filterStatus && t.status !== filterStatus) return false;
     if (filterPriority && t.priority !== filterPriority) return false;
+    if (filterTag && !tagNames(t).includes(filterTag)) return false;
     return true;
   });
 
-  const handleCreate = async (data: Partial<Ticket>) => {
+  const groups = groupByTag(filtered);
+  const tagOptions = allTags(tickets);
+
+  const handleCreate = async (data: TicketInput) => {
     await api.tickets.create(data);
     setShowCreate(false);
     load();
   };
 
-  const handleUpdate = async (id: string, data: Partial<Ticket>) => {
+  const handleUpdate = async (id: string, data: TicketInput) => {
     await api.tickets.update(id, data);
     load();
   };
@@ -105,6 +113,60 @@ export default function Tickets() {
     await api.tickets.delete(id);
     load();
   };
+
+  const renderTable = (list: Ticket[]) => (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
+                <th className="text-left px-6 py-3 font-medium">Key</th>
+                <th className="text-left px-6 py-3 font-medium">Title</th>
+                <th className="text-left px-6 py-3 font-medium">Status</th>
+                <th className="text-left px-6 py-3 font-medium">Priority</th>
+                <th className="text-left px-6 py-3 font-medium">Due</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((ticket) => (
+                <tr
+                  key={ticket.id}
+                  onClick={() => setSelectedTicket(ticket)}
+                  className="border-b border-slate-800/50 hover:bg-slate-900/50 cursor-pointer transition-colors"
+                >
+                  <td className="px-6 py-3">
+                    <span className="text-xs font-mono text-slate-500">
+                      {ticket.projectPrefix}-{ticket.number}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3">
+                    <span className="text-sm text-slate-200">
+                      {ticket.title}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3">
+                    <StatusBadge status={ticket.status} />
+                  </td>
+                  <td className="px-6 py-3">
+                    <PriorityBadge priority={ticket.priority} />
+                  </td>
+                  <td className="px-6 py-3">
+                    {ticket.dueDate ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(ticket.dueDate).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-700">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+  );
 
   return (
     <div className="h-full flex flex-col">
@@ -156,6 +218,27 @@ export default function Tickets() {
             </option>
           ))}
         </select>
+        <select
+          value={filterTag}
+          onChange={(e) => setFilterTag(e.target.value)}
+          className="bg-slate-800 text-xs text-slate-300 rounded-md border border-slate-700 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">All Tags</option>
+          {tagOptions.map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
+          ))}
+        </select>
+        <label className="inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={groupByTags}
+            onChange={(e) => setGroupByTags(e.target.checked)}
+            className="accent-blue-500"
+          />
+          Group by tag
+        </label>
         <span className="text-xs text-slate-600 ml-auto">
           {filtered.length} ticket{filtered.length !== 1 ? "s" : ""}
         </span>
@@ -172,57 +255,16 @@ export default function Tickets() {
             <p className="text-sm">No tickets found</p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
-                <th className="text-left px-6 py-3 font-medium">Key</th>
-                <th className="text-left px-6 py-3 font-medium">Title</th>
-                <th className="text-left px-6 py-3 font-medium">Status</th>
-                <th className="text-left px-6 py-3 font-medium">Priority</th>
-                <th className="text-left px-6 py-3 font-medium">Due</th>
-                <th className="w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((ticket) => (
-                <tr
-                  key={ticket.id}
-                  onClick={() => setSelectedTicket(ticket)}
-                  className="border-b border-slate-800/50 hover:bg-slate-900/50 cursor-pointer transition-colors"
-                >
-                  <td className="px-6 py-3">
-                    <span className="text-xs font-mono text-slate-500">
-                      {ticket.projectPrefix}-{ticket.number}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className="text-sm text-slate-200">
-                      {ticket.title}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3">
-                    <StatusBadge status={ticket.status} />
-                  </td>
-                  <td className="px-6 py-3">
-                    <PriorityBadge priority={ticket.priority} />
-                  </td>
-                  <td className="px-6 py-3">
-                    {ticket.dueDate ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-500">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(ticket.dueDate).toLocaleDateString()}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-700">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
-                    <ChevronRight className="w-4 h-4 text-slate-700" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          groupByTags ? groups.map((g) => (
+            <section key={g.tag}>
+              <h2 className="px-6 pt-5 pb-2 text-xs font-semibold text-slate-300 flex items-center gap-2">
+                <TagIcon className="w-3.5 h-3.5 text-slate-500" />
+                {g.tag}
+                <span className="text-slate-600 font-normal">{g.tickets.length}</span>
+              </h2>
+              {renderTable(g.tickets)}
+            </section>
+          )) : renderTable(filtered)
         )}
       </div>
 

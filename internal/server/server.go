@@ -267,6 +267,7 @@ func (s *Server) listTickets(w http.ResponseWriter, r *http.Request) {
 		TeamID:    r.URL.Query().Get("teamId"),
 		Status:    r.URL.Query().Get("status"),
 		Priority:  r.URL.Query().Get("priority"),
+		Label:     r.URL.Query().Get("label"),
 	}
 	tickets, err := s.store.ListTickets(filter)
 	if err != nil {
@@ -463,7 +464,7 @@ func (s *Server) deleteLabel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getBoard(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("projectId")
-	board, err := s.store.GetBoard(projectID)
+	board, err := s.store.GetBoard(projectID, r.URL.Query().Get("label"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
