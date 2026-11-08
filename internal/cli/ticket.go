@@ -42,7 +42,7 @@ func ticketCommands() *cobra.Command {
 		},
 	}
 	listCmd.Flags().StringVar(&projectID, "project", "", "filter by project ID")
-	listCmd.Flags().StringVar(&status, "status", "", "filter by status (todo|in_progress|done)")
+	listCmd.Flags().StringVar(&status, "status", "", "filter by status (todo|in_progress|ready_for_review|done)")
 	listCmd.Flags().StringVar(&priority, "priority", "", "filter by priority (urgent|high|medium|low)")
 
 	var createProject, createPriority, createDue, createTeam string

@@ -24,21 +24,11 @@ import {
   Users,
   Plus,
 } from "lucide-react";
-import { api, type Ticket, type Project, type Team, type BoardColumn } from "../api/client";
+import { api, type Ticket, type TicketInput, type Project, type Team, type BoardColumn } from "../api/client";
 import TicketPanel from "../components/TicketPanel";
 import CreateTicketModal from "../components/CreateTicketModal";
-
-const STATUSES = ["todo", "in_progress", "done"];
-const STATUS_LABELS: Record<string, string> = {
-  todo: "Todo",
-  in_progress: "In Progress",
-  done: "Done",
-};
-const STATUS_COLORS: Record<string, string> = {
-  todo: "bg-slate-500",
-  in_progress: "bg-blue-500",
-  done: "bg-green-500",
-};
+import { STATUSES, STATUS_LABELS, STATUS_COLORS } from "../lib/statuses";
+import { allTags, tagNames } from "../lib/tags";
 
 const PRIORITY_CONFIG: Record<string, { color: string; icon: typeof ArrowUp }> = {
   urgent: { color: "text-red-500", icon: AlertTriangle },
@@ -237,6 +227,7 @@ export default function Board() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [selectedTag, setSelectedTag] = useState<string>("");
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -270,7 +261,11 @@ export default function Board() {
   }, [loadBoard]);
 
   const getColumnTickets = (status: string) =>
-    columns.find((c) => c.status === status)?.tickets || [];
+    (columns.find((c) => c.status === status)?.tickets || []).filter(
+      (t) => !selectedTag || tagNames(t).includes(selectedTag)
+    );
+
+  const allBoardTickets = columns.flatMap((c) => c.tickets);
 
   const findTicketById = (id: UniqueIdentifier): Ticket | undefined => {
     for (const col of columns) {
@@ -341,7 +336,7 @@ export default function Board() {
     setSelectedTicket(ticket);
   };
 
-  const handleUpdate = async (id: string, data: Partial<Ticket>) => {
+  const handleUpdate = async (id: string, data: TicketInput) => {
     await api.tickets.update(id, data);
     loadBoard();
   };
@@ -351,7 +346,7 @@ export default function Board() {
     loadBoard();
   };
 
-  const handleCreate = async (data: Partial<Ticket>) => {
+  const handleCreate = async (data: TicketInput) => {
     await api.tickets.create(data);
     setCreateForStatus(null);
     loadBoard();
@@ -370,6 +365,18 @@ export default function Board() {
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.icon} {p.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedTag}
+          onChange={(e) => setSelectedTag(e.target.value)}
+          className="bg-slate-800 text-xs text-slate-300 rounded-md border border-slate-700 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">All Tags</option>
+          {allTags(allBoardTickets).map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
             </option>
           ))}
         </select>

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -266,6 +267,7 @@ func (s *Server) listTickets(w http.ResponseWriter, r *http.Request) {
 		TeamID:    r.URL.Query().Get("teamId"),
 		Status:    r.URL.Query().Get("status"),
 		Priority:  r.URL.Query().Get("priority"),
+		Label:     r.URL.Query().Get("label"),
 	}
 	tickets, err := s.store.ListTickets(filter)
 	if err != nil {
@@ -302,6 +304,10 @@ func (s *Server) createTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.store.CreateTicket(req)
+	if errors.Is(err, db.ErrInvalidStatus) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -316,6 +322,10 @@ func (s *Server) updateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.store.UpdateTicket(chi.URLParam(r, "id"), req)
+	if errors.Is(err, db.ErrInvalidStatus) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -338,6 +348,10 @@ func (s *Server) moveTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.store.MoveTicket(chi.URLParam(r, "id"), req)
+	if errors.Is(err, db.ErrInvalidStatus) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -450,7 +464,7 @@ func (s *Server) deleteLabel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getBoard(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("projectId")
-	board, err := s.store.GetBoard(projectID)
+	board, err := s.store.GetBoard(projectID, r.URL.Query().Get("label"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

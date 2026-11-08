@@ -2,6 +2,19 @@ package models
 
 import "time"
 
+// TicketStatuses — статусы тикетов в порядке колонок на доске.
+var TicketStatuses = []string{"todo", "in_progress", "ready_for_review", "done"}
+
+// IsValidTicketStatus сообщает, является ли s допустимым статусом тикета.
+func IsValidTicketStatus(s string) bool {
+	for _, v := range TicketStatuses {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 type Project struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
@@ -175,4 +188,5 @@ type TicketFilter struct {
 	TeamID    string
 	Status    string
 	Priority  string
+	Label     string // ID или имя тега
 }

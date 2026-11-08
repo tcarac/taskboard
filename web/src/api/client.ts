@@ -50,6 +50,9 @@ export interface Ticket {
   blockedBy: string[];
 }
 
+// Данные для создания/изменения тикета. labels — имена тегов (новые создаются автоматически).
+export type TicketInput = Partial<Omit<Ticket, "labels">> & { labels?: string[] };
+
 export interface BoardColumn {
   status: string;
   tickets: Ticket[];
@@ -111,12 +114,12 @@ export const api = {
   tickets: {
     list: () => request<Ticket[]>("/api/tickets"),
     get: (id: string) => request<Ticket>(`/api/tickets/${id}`),
-    create: (data: Partial<Ticket>) =>
+    create: (data: TicketInput) =>
       request<Ticket>("/api/tickets", {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    update: (id: string, data: Partial<Ticket>) =>
+    update: (id: string, data: TicketInput) =>
       request<Ticket>(`/api/tickets/${id}`, {
         method: "PUT",
         body: JSON.stringify(data),

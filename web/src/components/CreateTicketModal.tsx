@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import type { Ticket, Project, Team } from "../api/client";
+import type { TicketInput, Project, Team } from "../api/client";
+import { parseTags } from "../lib/tags";
 
 const PRIORITIES = ["urgent", "high", "medium", "low"];
 
@@ -15,7 +16,7 @@ export default function CreateTicketModal({
   teams: Team[];
   defaultStatus?: string;
   onClose: () => void;
-  onCreate: (data: Partial<Ticket>) => void;
+  onCreate: (data: TicketInput) => void;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
   const [title, setTitle] = useState("");
@@ -23,6 +24,7 @@ export default function CreateTicketModal({
   const [priority, setPriority] = useState("medium");
   const [dueDate, setDueDate] = useState("");
   const [teamId, setTeamId] = useState("");
+  const [tags, setTags] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +37,7 @@ export default function CreateTicketModal({
       status: defaultStatus || "todo",
       dueDate: dueDate || undefined,
       teamId: teamId || undefined,
+      labels: parseTags(tags),
     });
   };
 
@@ -149,6 +152,20 @@ export default function CreateTicketModal({
           </div>
         </div>
 
+        <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">
+              Tags
+            </label>
+            <input
+              value={tags}
+              onChange={(e) => {
+                setTags(e.target.value);
+                void 0;
+              }}
+              placeholder="например: первая волна работ, этап-4 по плану 123"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"

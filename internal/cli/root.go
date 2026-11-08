@@ -180,7 +180,7 @@ func daemonize(port int) error {
 		daemonArgs = append([]string{"--db", dbPath}, daemonArgs...)
 	}
 	cmd := exec.Command(exe, daemonArgs...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.SysProcAttr = daemonSysProcAttr()
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)

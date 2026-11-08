@@ -1,16 +1,11 @@
 import { useState } from "react";
 import { X, Trash2, CheckCircle2, Circle, Pencil, Eye } from "lucide-react";
 import Markdown from "react-markdown";
-import { api, type Ticket, type Project, type Team, type Subtask } from "../api/client";
+import { api, type Ticket, type TicketInput, type Project, type Team, type Subtask } from "../api/client";
+import { STATUSES, STATUS_LABELS } from "../lib/statuses";
+import { parseTags, tagNames } from "../lib/tags";
 
-const STATUSES = ["todo", "in_progress", "done"];
 const PRIORITIES = ["urgent", "high", "medium", "low"];
-
-const STATUS_LABELS: Record<string, string> = {
-  todo: "Todo",
-  in_progress: "In Progress",
-  done: "Done",
-};
 
 export default function TicketPanel({
   ticket,
@@ -24,7 +19,7 @@ export default function TicketPanel({
   projects: Project[];
   teams: Team[];
   onClose: () => void;
-  onUpdate: (id: string, data: Partial<Ticket>) => void;
+  onUpdate: (id: string, data: TicketInput) => void;
   onDelete: (id: string) => void;
 }) {
   const [title, setTitle] = useState(ticket.title);
@@ -35,6 +30,7 @@ export default function TicketPanel({
   const [teamId, setTeamId] = useState(ticket.teamId || "");
   const [subtasks, setSubtasks] = useState<Subtask[]>(ticket.subtasks || []);
   const [newSubtask, setNewSubtask] = useState("");
+  const [tags, setTags] = useState(tagNames(ticket).join(", "));
   const [dirty, setDirty] = useState(false);
   const [descMode, setDescMode] = useState<"preview" | "write">(description ? "preview" : "write");
 
@@ -48,6 +44,7 @@ export default function TicketPanel({
       priority,
       dueDate: dueDate || undefined,
       teamId: teamId || undefined,
+      labels: parseTags(tags),
     });
     setDirty(false);
   };
@@ -158,6 +155,21 @@ export default function TicketPanel({
               </div>
             )}
           </div>
+
+          <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                Tags
+              </label>
+              <input
+                value={tags}
+                onChange={(e) => {
+                  setTags(e.target.value);
+                  markDirty();
+                }}
+                placeholder="например: первая волна работ, этап-4 по плану 123"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>

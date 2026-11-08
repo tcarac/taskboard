@@ -12,7 +12,7 @@ Single binary. SQLite-backed. No Docker, no external database, no runtime depend
 
 ## Features
 
-- **Kanban Board** — drag-and-drop ticket management across Todo, In Progress, and Done columns
+- **Kanban Board** — drag-and-drop ticket management across Todo, In Progress, Ready for Review, and Done columns
 - **Projects** — organize work with customizable projects (icons, colors, prefixes)
 - **Teams** — assign tickets to teams
 - **Tickets** — priority levels, due dates, labels, subtasks, dependencies (blocked by)

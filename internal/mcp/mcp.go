@@ -288,9 +288,34 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 	case "get_board":
 		var a struct {
 			ProjectID string `json:"projectId"`
+			Label     string `json:"label"`
 		}
 		json.Unmarshal(args, &a)
-		return s.store.GetBoard(a.ProjectID)
+		return s.store.GetBoard(a.ProjectID, a.Label)
+
+	case "list_labels":
+		return s.store.ListLabels()
+
+	case "create_label":
+		var a models.CreateLabelRequest
+		json.Unmarshal(args, &a)
+		return s.store.CreateLabel(a)
+
+	case "add_label":
+		var a struct {
+			TicketID string `json:"ticketId"`
+			Label    string `json:"label"`
+		}
+		json.Unmarshal(args, &a)
+		return s.store.AddLabelToTicket(a.TicketID, a.Label)
+
+	case "remove_label":
+		var a struct {
+			TicketID string `json:"ticketId"`
+			Label    string `json:"label"`
+		}
+		json.Unmarshal(args, &a)
+		return s.store.RemoveLabelFromTicket(a.TicketID, a.Label)
 
 	case "create_subtask":
 		var a struct {
@@ -458,17 +483,60 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Required:   []string{"id"},
 			},
 		},
+		// --- Labels (tags for grouping tickets into sections, e.g. "wave 1") ---
+		{
+			Name:        "list_labels",
+			Description: "List all tags (labels). Tags group tickets into sections such as waves or plan stages.",
+			InputSchema: jsonSchema{Type: "object"},
+		},
+		{
+			Name:        "create_label",
+			Description: "Create a tag. If a tag with this name already exists, the existing tag is returned.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"name":  {Type: "string", Description: "Tag name, e.g. \"первая волна работ\""},
+					"color": {Type: "string", Description: "Hex color, e.g. #3B82F6 (optional)"},
+				},
+				Required: []string{"name"},
+			},
+		},
+		{
+			Name:        "add_label",
+			Description: "Attach a tag to a ticket without removing its other tags. The tag is looked up by ID or name (case-insensitive) and created if it does not exist.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"ticketId": {Type: "string", Description: "Ticket ID"},
+					"label":    {Type: "string", Description: "Tag name or tag ID"},
+				},
+				Required: []string{"ticketId", "label"},
+			},
+		},
+		{
+			Name:        "remove_label",
+			Description: "Detach a tag from a ticket. The tag itself is kept.",
+			InputSchema: jsonSchema{
+				Type: "object",
+				Properties: map[string]schemaProp{
+					"ticketId": {Type: "string", Description: "Ticket ID"},
+					"label":    {Type: "string", Description: "Tag name or tag ID"},
+				},
+				Required: []string{"ticketId", "label"},
+			},
+		},
 		// --- Tickets (tasks within a project) ---
 		{
 			Name:        "list_tickets",
-			Description: "List tickets with optional filters by project, team, status, and priority",
+			Description: "List tickets with optional filters by project, team, status, priority, and tag",
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
 					"projectId": {Type: "string", Description: "Filter by project ID"},
 					"teamId":    {Type: "string", Description: "Filter by team ID"},
-					"status":    {Type: "string", Description: "Filter by status", Enum: []string{"todo", "in_progress", "done"}},
+					"status":    {Type: "string", Description: "Filter by status", Enum: models.TicketStatuses},
 					"priority":  {Type: "string", Description: "Filter by priority", Enum: []string{"urgent", "high", "medium", "low"}},
+					"label":     {Type: "string", Description: "Filter by tag name or ID"},
 				},
 			},
 		},
@@ -493,10 +561,11 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 					"projectId":   {Type: "string", Description: "Project ID"},
 					"title":       {Type: "string", Description: "Ticket title"},
 					"description": {Type: "string", Description: "Rich text description"},
-					"status":      {Type: "string", Description: "Initial status", Enum: []string{"todo", "in_progress", "done"}},
+					"status":      {Type: "string", Description: "Initial status", Enum: models.TicketStatuses},
 					"priority":    {Type: "string", Description: "Priority level", Enum: []string{"urgent", "high", "medium", "low"}},
 					"teamId":      {Type: "string", Description: "Team ID"},
 					"dueDate":     {Type: "string", Description: "Due date (YYYY-MM-DD)"},
+					"labels":      {Type: "array", Description: "Tag names (created automatically if new). Replaces existing tags on update.", Items: &jsonSchema{Type: "string"}},
 				},
 				Required: []string{"projectId", "title"},
 			},
@@ -510,10 +579,11 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 					"id":          {Type: "string", Description: "Ticket ID"},
 					"title":       {Type: "string", Description: "Ticket title"},
 					"description": {Type: "string", Description: "Description"},
-					"status":      {Type: "string", Description: "Status", Enum: []string{"todo", "in_progress", "done"}},
+					"status":      {Type: "string", Description: "Status", Enum: models.TicketStatuses},
 					"priority":    {Type: "string", Description: "Priority", Enum: []string{"urgent", "high", "medium", "low"}},
 					"teamId":      {Type: "string", Description: "Team ID"},
 					"dueDate":     {Type: "string", Description: "Due date (YYYY-MM-DD)"},
+					"labels":      {Type: "array", Description: "Tag names (created automatically if new). Replaces existing tags on update.", Items: &jsonSchema{Type: "string"}},
 				},
 				Required: []string{"id"},
 			},
@@ -525,7 +595,7 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 				Type: "object",
 				Properties: map[string]schemaProp{
 					"id":     {Type: "string", Description: "Ticket ID"},
-					"status": {Type: "string", Description: "Target status", Enum: []string{"todo", "in_progress", "done"}},
+					"status": {Type: "string", Description: "Target status", Enum: models.TicketStatuses},
 				},
 				Required: []string{"id", "status"},
 			},
@@ -542,11 +612,12 @@ func (s *MCPServer) toolDefinitions() []toolDef {
 		// --- Board ---
 		{
 			Name:        "get_board",
-			Description: "Get full Kanban board grouped by status columns (todo, in_progress, done)",
+			Description: "Get full Kanban board grouped by status columns (todo, in_progress, ready_for_review, done)",
 			InputSchema: jsonSchema{
 				Type: "object",
 				Properties: map[string]schemaProp{
 					"projectId": {Type: "string", Description: "Filter by project ID (optional)"},
+					"label":     {Type: "string", Description: "Show only tickets with this tag name or ID (optional)"},
 				},
 			},
 		},
